@@ -35,28 +35,23 @@ def load_all_data():
 
 
 # ==========================================
-# 3. 美化渲染模块：黄金前置列与双向冻结窗格
+# 3. 美化渲染模块：PC端黄金双冻结 + 移动端自适应解冻
 # ==========================================
 def display_multiline_table(df):
-    # --- 1. 专门为网页视图优化：把最重要的两列提到最前面 ---
     cols = list(df.columns)
     col_class = '教学班名称'
     col_day = '星期'
 
-    # 确保这两列确实存在（防错机制）
     if col_class in cols and col_day in cols:
         cols.remove(col_class)
         cols.remove(col_day)
-        # 重新组合：教学班名称排第1，星期排第2，剩下的排后面
         new_cols = [col_class, col_day] + cols
         df = df[new_cols]
 
-    # --- 2. 转换换行符并生成 HTML ---
     df_display = df.replace(r'\n', '<br>', regex=True)
     html = df_display.to_html(escape=False, index=False)
 
-    # --- 3. 注入超级 CSS 样式 ---
-    # ⚠️ 这里的 CSS 必须“顶格写”，绝对不能有缩进
+    # ⚠️ 顶格写 CSS，加入移动端智能识别
     css = """<style>
 .table-wrapper {
     max-height: 75vh; 
@@ -71,7 +66,7 @@ def display_multiline_table(df):
     font-size: 14px;
     font-family: sans-serif;
 }
-/* 冻结全部表头在顶部 */
+/* 所有设备的顶部表头永远冻结 */
 .custom-excel-table th {
     background-color: #f0f2f6;
     color: #31333F;
@@ -91,32 +86,57 @@ def display_multiline_table(df):
     line-height: 1.6;
 }
 
-/* ======== 核心冻结技术 ======== */
-/* 冻结第1列：教学班名称 */
-.custom-excel-table th:nth-child(1),
-.custom-excel-table td:nth-child(1) {
-    position: sticky;
-    left: 0;
-    min-width: 220px; /* 固定宽度防止错位 */
-    max-width: 220px;
-    background-color: #ffffff; 
-    z-index: 1; 
+/* ======== 💻 电脑端：启动左侧双列冻结 ======== */
+@media screen and (min-width: 769px) {
+    .custom-excel-table th:nth-child(1),
+    .custom-excel-table td:nth-child(1) {
+        position: sticky;
+        left: 0;
+        min-width: 220px; 
+        max-width: 220px;
+        background-color: #ffffff; 
+        z-index: 1; 
+    }
+    .custom-excel-table th:nth-child(2),
+    .custom-excel-table td:nth-child(2) {
+        position: sticky;
+        left: 220px; 
+        min-width: 60px;
+        max-width: 60px;
+        background-color: #ffffff;
+        z-index: 1;
+    }
+    .custom-excel-table th:nth-child(1),
+    .custom-excel-table th:nth-child(2) {
+        background-color: #e2e6f0; 
+        z-index: 3; 
+    }
 }
-/* 冻结第2列：星期 */
-.custom-excel-table th:nth-child(2),
-.custom-excel-table td:nth-child(2) {
-    position: sticky;
-    left: 220px; /* 必须紧挨着第一列的宽度 */
-    min-width: 60px;
-    max-width: 60px;
-    background-color: #ffffff;
-    z-index: 1;
-}
-/* 左上角的十字路口（表头），层级必须最高，防止往下滚被盖住 */
-.custom-excel-table th:nth-child(1),
-.custom-excel-table th:nth-child(2) {
-    background-color: #e2e6f0; 
-    z-index: 3; 
+
+/* ======== 📱 手机端：自动解冻，优化排版 ======== */
+@media screen and (max-width: 768px) {
+    .custom-excel-table table {
+        font-size: 12px; /* 缩小字体适应手机屏幕 */
+    }
+    .custom-excel-table th,
+    .custom-excel-table td {
+        padding: 6px 4px; /* 缩小边距，腾出更多数据空间 */
+    }
+    /* 强制解除左侧两列的冻结，允许全屏滑动 */
+    .custom-excel-table th:nth-child(1),
+    .custom-excel-table td:nth-child(1),
+    .custom-excel-table th:nth-child(2),
+    .custom-excel-table td:nth-child(2) {
+        position: static !important;
+        min-width: auto !important;
+        max-width: none !important;
+    }
+    /* 恢复正常的表头底色和层级 */
+    .custom-excel-table th:nth-child(1),
+    .custom-excel-table th:nth-child(2) {
+        background-color: #f0f2f6 !important;
+        z-index: 2 !important;
+    }
 }
 </style>"""
 
