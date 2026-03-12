@@ -15,7 +15,6 @@ ADMIN_PASSWORD = "888"
 MASTER_FILE = '2025-2026工程训练_0308.xlsx'
 SUB_FILE = '各工种场地课表_最新版03082.xlsx'
 
-# 【全新升级核心正则】增加对第4个分组(老师姓氏)的精准提取
 GLOBAL_PATTERN = re.compile(r'^([AB]?)\s*(.*?)\s*(\d+\'?-\d+\'?|考\d+)\s*(?:[（\(](.*?)[）\)])?\s*$')
 
 
@@ -35,14 +34,17 @@ def load_all_data():
 
 
 # ==========================================
-# 3. 美化渲染模块：PC端黄金双冻结 + 移动端自适应解冻
+# 3. 美化渲染模块：动态 CSS 与精准冻结
 # ==========================================
-def display_multiline_table(df):
+def display_multiline_table(df, freeze_mode="智能自适应 (推荐)"):
     cols = list(df.columns)
     col_class = '教学班名称'
     col_day = '星期'
 
-    if col_class in cols and col_day in cols:
+    # 智能判断：这是大总表还是分表？
+    is_master_table = (col_class in cols and col_day in cols)
+
+    if is_master_table:
         cols.remove(col_class)
         cols.remove(col_day)
         new_cols = [col_class, col_day] + cols
@@ -51,100 +53,62 @@ def display_multiline_table(df):
     df_display = df.replace(r'\n', '<br>', regex=True)
     html = df_display.to_html(escape=False, index=False)
 
-    # ⚠️ 顶格写 CSS，加入移动端智能识别
+    # --- 基础 CSS ---
     css = """<style>
-.table-wrapper {
-    max-height: 75vh; 
-    overflow-x: auto;
-    overflow-y: auto;
-    border: 1px solid #e6e9ef;
-    border-radius: 5px;
-}
-.custom-excel-table table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-    font-family: sans-serif;
-}
-/* 所有设备的顶部表头永远冻结 */
+.table-wrapper { max-height: 75vh; overflow-x: auto; overflow-y: auto; border: 1px solid #e6e9ef; border-radius: 5px; }
+.custom-excel-table table { width: 100%; border-collapse: collapse; font-size: 14px; font-family: sans-serif; }
+/* 无论如何，顶部的表头永远冻结吸顶 */
 .custom-excel-table th {
-    background-color: #f0f2f6;
-    color: #31333F;
-    border: 1px solid #e6e9ef;
-    padding: 10px;
-    text-align: center !important;
-    white-space: nowrap;
-    position: sticky;
-    top: 0;
-    z-index: 2; 
+    background-color: #f0f2f6; color: #31333F; border: 1px solid #e6e9ef; padding: 10px;
+    text-align: center !important; white-space: nowrap; position: sticky; top: 0; z-index: 2; 
 }
-.custom-excel-table td {
-    border: 1px solid #e6e9ef;
-    padding: 8px;
-    text-align: center;
-    vertical-align: middle;
-    line-height: 1.6;
-}
+.custom-excel-table td { border: 1px solid #e6e9ef; padding: 8px; text-align: center; vertical-align: middle; line-height: 1.6; }
+"""
 
-/* ======== 💻 电脑端：启动左侧双列冻结 ======== */
-@media screen and (min-width: 769px) {
-    .custom-excel-table th:nth-child(1),
-    .custom-excel-table td:nth-child(1) {
-        position: sticky;
-        left: 0;
-        min-width: 220px; 
-        max-width: 220px;
-        background-color: #ffffff; 
-        z-index: 1; 
-    }
-    .custom-excel-table th:nth-child(2),
-    .custom-excel-table td:nth-child(2) {
-        position: sticky;
-        left: 220px; 
-        min-width: 60px;
-        max-width: 60px;
-        background-color: #ffffff;
-        z-index: 1;
-    }
-    .custom-excel-table th:nth-child(1),
-    .custom-excel-table th:nth-child(2) {
-        background-color: #e2e6f0; 
-        z-index: 3; 
-    }
-}
+    # --- 左侧冻结 CSS 逻辑包 ---
+    if is_master_table:
+        # 大总表：冻结前两列 (教学班 + 星期)
+        freeze_css = """
+        .custom-excel-table th:nth-child(1), .custom-excel-table td:nth-child(1) {
+            position: sticky; left: 0; min-width: 220px; max-width: 220px; background-color: #ffffff; z-index: 1; 
+        }
+        .custom-excel-table th:nth-child(2), .custom-excel-table td:nth-child(2) {
+            position: sticky; left: 220px; min-width: 60px; max-width: 60px; background-color: #ffffff; z-index: 1;
+        }
+        .custom-excel-table th:nth-child(1), .custom-excel-table th:nth-child(2) { background-color: #e2e6f0; z-index: 3; }
+        """
+    else:
+        # 场地分表：只冻结第一列 (周次)
+        freeze_css = """
+        .custom-excel-table th:nth-child(1), .custom-excel-table td:nth-child(1) {
+            position: sticky; left: 0; min-width: 80px; max-width: 80px; background-color: #ffffff; z-index: 1; 
+        }
+        .custom-excel-table th:nth-child(1) { background-color: #e2e6f0; z-index: 3; }
+        """
 
-/* ======== 📱 手机端：自动解冻，优化排版 ======== */
-@media screen and (max-width: 768px) {
-    .custom-excel-table table {
-        font-size: 12px; /* 缩小字体适应手机屏幕 */
+    # --- 移动端排版优化包 (单纯缩小字体边距，腾出空间) ---
+    mobile_optimizations = """
+    @media screen and (max-width: 768px) {
+        .custom-excel-table table { font-size: 12px; }
+        .custom-excel-table th, .custom-excel-table td { padding: 6px 4px; }
     }
-    .custom-excel-table th,
-    .custom-excel-table td {
-        padding: 6px 4px; /* 缩小边距，腾出更多数据空间 */
-    }
-    /* 强制解除左侧两列的冻结，允许全屏滑动 */
-    .custom-excel-table th:nth-child(1),
-    .custom-excel-table td:nth-child(1),
-    .custom-excel-table th:nth-child(2),
-    .custom-excel-table td:nth-child(2) {
-        position: static !important;
-        min-width: auto !important;
-        max-width: none !important;
-    }
-    /* 恢复正常的表头底色和层级 */
-    .custom-excel-table th:nth-child(1),
-    .custom-excel-table th:nth-child(2) {
-        background-color: #f0f2f6 !important;
-        z-index: 2 !important;
-    }
-}
-</style>"""
+    """
+
+    # --- 根据用户的开关状态，注入不同的 CSS ---
+    if freeze_mode == "智能自适应 (推荐)":
+        css += f"@media screen and (min-width: 769px) {{\n{freeze_css}\n}}\n{mobile_optimizations}"
+    elif freeze_mode == "🔒 强制冻结":
+        css += f"{freeze_css}\n{mobile_optimizations}"
+    elif freeze_mode == "🔓 取消冻结":
+        css += f"{mobile_optimizations}"
+
+    css += "</style>"
 
     st.write(css + f'<div class="table-wrapper custom-excel-table">{html}</div>', unsafe_allow_html=True)
 
 
 # ==========================================
-# 4. 核心功能二：联动同步引擎
+# 4. 核心功能二：联动同步引擎 (保持不变)
 # ==========================================
 def sync_sub_sheets(df_master_latest):
     week_cols = {}
@@ -171,14 +135,11 @@ def sync_sub_sheets(df_master_latest):
                 for line in cell_val.split('\n'):
                     line = line.strip()
                     if not line: continue
-
                     match = GLOBAL_PATTERN.match(line)
                     if match:
                         ws_name = match.group(2).strip()
                         time_suffix = match.group(3)
-
-                        if not ws_name:
-                            ws_name = '考试' if '考' in time_suffix else '未命名项目'
+                        if not ws_name: ws_name = '考试' if '考' in time_suffix else '未命名项目'
 
                         init_ws(ws_name)
                         display_text = f"{class_name} {line}"
@@ -223,8 +184,7 @@ def sync_sub_sheets(df_master_latest):
 
             worksheet = writer.sheets[ws]
             worksheet.column_dimensions['A'].width = 12
-            for col_idx in range(2, 7):
-                worksheet.column_dimensions[get_column_letter(col_idx)].width = 32
+            for col_idx in range(2, 7): worksheet.column_dimensions[get_column_letter(col_idx)].width = 32
             fill_gray = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             for row in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row, min_col=1,
                                            max_col=worksheet.max_column):
@@ -247,11 +207,23 @@ except FileNotFoundError as e:
     st.error(f"❌ 找不到文件，请确保总表和分表都在同一个文件夹内！")
     st.stop()
 
+# --- 侧边栏导航 ---
 st.sidebar.header("⚙️ 导航与控制面板")
-# 【新增第三个选项：自由组合】
 view_mode = st.sidebar.radio("👀 请选择视图模式：", ["📚 查看大总表", "📍 查看场地分表", "🧑‍🏫 个人专属课表 (自由组合)"])
+
 st.sidebar.markdown("---")
 
+# --- 新增：显示设置（控制冻结） ---
+st.sidebar.subheader("🎛️ 视图显示设置")
+freeze_option = st.sidebar.radio(
+    "左侧列冻结模式：",
+    ["智能自适应 (推荐)", "🔒 强制冻结", "🔓 取消冻结"],
+    help="手机屏幕较窄时，建议选择「取消冻结」以获得更大的数据滑动视野。"
+)
+
+st.sidebar.markdown("---")
+
+# --- 管理员通道 ---
 st.sidebar.subheader("🔒 管理员通道")
 input_pwd = st.sidebar.text_input("请输入修改密码解锁编辑模式：", type="password")
 
@@ -266,14 +238,8 @@ if view_mode == "📚 查看大总表":
     st.subheader("📌 当前视图：【工程训练全景大总表】")
 
     if is_admin:
-        st.info("💡 提示：编辑模式下，双击包含多行文本的单元格会弹出悬浮编辑框。修改完成后，请点击下方保存按钮。")
-        edited_df = st.data_editor(
-            df_master,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="dynamic"
-        )
-
+        st.info("💡 提示：编辑模式下不支持自定义冻结。修改完成后，请点击下方保存按钮。")
+        edited_df = st.data_editor(df_master, use_container_width=True, hide_index=True, num_rows="dynamic")
         if st.button("💾 保存修改，并同步更新所有场地课表", type="primary"):
             with st.spinner("正在保存总表并为您重新拆解分发课程，请稍候..."):
                 edited_df.to_excel(MASTER_FILE, index=False, sheet_name='排课表')
@@ -282,24 +248,22 @@ if view_mode == "📚 查看大总表":
             st.success("🎉 修改已成功保存！所有场地分表已联动更新！页面即将刷新...")
             st.rerun()
     else:
-        display_multiline_table(df_master)
+        # 只读模式下传入用户的冻结设定
+        display_multiline_table(df_master, freeze_option)
 
 # ----------------- 模式二：单一场地分表 -----------------
 elif view_mode == "📍 查看场地分表":
     sheet_names = list(all_sub_sheets.keys())
     selected_sheet = st.sidebar.selectbox("🎯 请选择要查看的场地/工种：", sheet_names)
     st.subheader(f"📌 当前视图：【{selected_sheet}】场地课表")
-    display_multiline_table(all_sub_sheets[selected_sheet])
+    display_multiline_table(all_sub_sheets[selected_sheet], freeze_option)
 
-# ----------------- 模式三：个人自由组合（全新功能） -----------------
+# ----------------- 模式三：个人自由组合 -----------------
 elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
     st.subheader("📌 当前视图：【个人专属自由组合课表】")
-    st.info("💡 请在下方自由勾选您负责的工种以及您代课的姓氏标识，系统将为您生成大合体课表！")
 
-    # 动态扫描提取所有工种和老师标识
     available_ws = set()
     available_teachers = set()
-
     week_cols = {col: int(re.search(r'第(\d+)周', col).group(1)) for col in df_master.columns if
                  re.search(r'第(\d+)周', col)}
 
@@ -311,14 +275,11 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
                     match = GLOBAL_PATTERN.match(line.strip())
                     if match:
                         ws = match.group(2).strip()
-                        time_s = match.group(3)
                         teacher = match.group(4).strip() if match.group(4) else ""
-
-                        if not ws: ws = '考试' if '考' in time_s else '未命名项目'
+                        if not ws: ws = '考试' if '考' in match.group(3) else '未命名项目'
                         available_ws.add(ws)
                         if teacher: available_teachers.add(teacher)
 
-    # UI：双列多选框
     col1, col2 = st.columns(2)
     with col1:
         selected_ws = st.multiselect("🎯 1. 请选择工种 (可多选):", sorted(list(available_ws)))
@@ -328,7 +289,6 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
     if not selected_ws and not selected_teachers:
         st.warning("👈 请在上方至少选择一项工种或代课标识以生成您的专属课表。")
     else:
-        # 生成合体课表逻辑
         days = ['周一', '周二', '周三', '周四', '周五']
         custom_schedule = {w: {d: {'上午': [], '下午': []} for d in days} for w in range(1, 22)}
 
@@ -350,10 +310,8 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
                             teacher_name = match.group(4).strip() if match.group(4) else ""
                             if not ws_name: ws_name = '考试' if '考' in time_suffix else '未命名项目'
 
-                            # 【核心判断逻辑】属于选中的工种，或者包含选中的代课老师
                             if (ws_name in selected_ws) or (teacher_name in selected_teachers):
                                 display_text = f"{class_name} {line}"
-
                                 is_am, is_pm = False, False
                                 if '考' in time_suffix:
                                     num = int(time_suffix.replace('考', ''))
@@ -369,7 +327,6 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
                                 if is_am: custom_schedule[week_num][day]['上午'].append(display_text)
                                 if is_pm: custom_schedule[week_num][day]['下午'].append(display_text)
 
-        # 组装展示用 DataFrame
         custom_data = []
         for w in range(1, 22):
             row_dict = {'周次': f'第{w}周'}
@@ -383,4 +340,5 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
 
         df_custom = pd.DataFrame(custom_data)
         st.success("✨ 合成完毕！以下是为您量身定制的专属课表：")
-        display_multiline_table(df_custom)
+        # 同样传入冻结设置
+        display_multiline_table(df_custom, freeze_option)
