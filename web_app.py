@@ -287,22 +287,20 @@ input_pwd = st.sidebar.text_input("请输入修改密码解锁编辑模式：", 
 is_admin = (input_pwd == ADMIN_PASSWORD)
 if is_admin: st.sidebar.success("✅ 密码正确，已解锁！")
 
-# --- 【新增】下载全局双表按钮 ---
+# --- 【修复】安全的下载全局双表按钮 ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("📥 核心数据导出备份")
-try:
-    with open(MASTER_FILE, "rb") as f:
-        master_bytes = f.read()
-    with open(SUB_FILE, "rb") as f:
-        sub_bytes = f.read()
-    st.sidebar.download_button("📦 下载最新【全景大总表】", data=master_bytes, file_name="最新_工程训练总表.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                               use_container_width=True)
-    st.sidebar.download_button("📦 下载最新【各工种场地表】", data=sub_bytes, file_name="最新_各工种场地课表.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                               use_container_width=True)
-except Exception:
-    pass  # 若文件正在写入可能偶发读取失败，静默处理
+if os.path.exists(MASTER_FILE) and os.path.exists(SUB_FILE):
+    with open(MASTER_FILE, "rb") as f_master:
+        st.sidebar.download_button("📦 下载最新【全景大总表】", data=f_master, file_name="最新_工程训练总表.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   use_container_width=True)
+    with open(SUB_FILE, "rb") as f_sub:
+        st.sidebar.download_button("📦 下载最新【各工种场地表】", data=f_sub, file_name="最新_各工种场地课表.xlsx",
+                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                   use_container_width=True)
+else:
+    st.sidebar.warning("表格文件尚未准备好，请稍后再试。")
 
 # ----------------- 模式一：大总表 -----------------
 if view_mode == "📚 查看大总表":
@@ -353,7 +351,6 @@ elif view_mode == "🔎 专属课表快速查询":
             type="primary"
         )
 
-        # 【新增：管理员删除功能】
         if is_admin:
             st.markdown("---")
             st.error("🚨 管理员危险操作区：清理废弃课表")
@@ -408,9 +405,9 @@ elif view_mode == "🧑‍🏫 个人专属课表 (新建与配置)":
         st.warning("👈 请在上方至少选择一项工种或代课标识以预览您的专属课表。")
     else:
         df_custom = generate_custom_df(df_master, selected_ws, selected_teachers)
-        st.success("✨ 预览生成完毕！如果不保存，此表在离开页面后会消失。")
-        display_multiline_table(df_custom, freeze_option)
+        st.success("✨ 预览生成完毕！")
 
+        # 【修改】将保存UI提取到了表格的正上方！
         st.markdown("---")
         st.subheader("💾 保存到云端快速查询库")
         col_input, col_btn = st.columns([3, 1])
@@ -430,3 +427,8 @@ elif view_mode == "🧑‍🏫 个人专属课表 (新建与配置)":
                         save_configs(saved_configs)
                         push_to_github(CONFIG_FILE, f"Add new custom schedule: {remark_name}")
                     st.success(f"🎉 保存成功！您现在可以去左侧导航栏的『🔎 专属课表快速查询』里直接下拉调用它啦！")
+
+        st.markdown("---")
+
+        # 最后才展示极其漫长的图表
+        display_multiline_table(df_custom, freeze_option)
