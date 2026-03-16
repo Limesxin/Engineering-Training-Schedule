@@ -256,7 +256,7 @@ if view_mode == "📚 查看大总表":
                     g = Github(st.secrets["GITHUB_TOKEN"])
 
                     # ⚠️⚠️⚠️ 请务必修改这里！填入您的 GitHub 用户名和仓库名
-                    repo = g.get_repo("您的GitHub用户名/Engineering-Training-Schedule")
+                    repo = g.get_repo("Limesxin/Engineering-Training-Schedule")
 
                     # 读取本地最新的总表二进制数据并推送到 GitHub
                     with open(MASTER_FILE, "rb") as f:
