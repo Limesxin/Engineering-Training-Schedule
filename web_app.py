@@ -240,13 +240,48 @@ if view_mode == "📚 查看大总表":
     if is_admin:
         st.info("💡 提示：编辑模式下不支持自定义冻结。修改完成后，请点击下方保存按钮。")
         edited_df = st.data_editor(df_master, use_container_width=True, hide_index=True, num_rows="dynamic")
-        if st.button("💾 保存修改，并同步更新所有场地课表", type="primary"):
-            with st.spinner("正在保存总表并为您重新拆解分发课程，请稍候..."):
-                edited_df.to_excel(MASTER_FILE, index=False, sheet_name='排课表')
-                sync_sub_sheets(edited_df)
-                st.cache_data.clear()
-            st.success("🎉 修改已成功保存！所有场地分表已联动更新！页面即将刷新...")
-            st.rerun()
+        if st.button("💾 保存修改，并永久同步至 GitHub", type="primary"):
+            with st.spinner("🚀 正在保存并向 GitHub 数据库进行永久同步，请千万不要关闭网页（约需10秒）..."):
+                try:
+                    # 1. 覆盖保存大总表到云端本地
+                    edited_df.to_excel(MASTER_FILE, index=False, sheet_name='排课表')
+
+                    # 2. 触发联动同步引擎，重新生成场地分表本地文件
+                    sync_sub_sheets(edited_df)
+
+                    # 3. 呼叫 GitHub 机器人进行自动化推送
+                    from github import Github
+
+                    # 读取咱们刚才存在保险柜里的钥匙
+                    g = Github(st.secrets["GITHUB_TOKEN"])
+
+                    # ⚠️⚠️⚠️ 请务必修改这里！填入您的 GitHub 用户名和仓库名
+                    repo = g.get_repo("您的GitHub用户名/Engineering-Training-Schedule")
+
+                    # 读取本地最新的总表二进制数据并推送到 GitHub
+                    with open(MASTER_FILE, "rb") as f:
+                        master_content = f.read()
+                    master_file_online = repo.get_contents(MASTER_FILE)
+                    repo.update_file(master_file_online.path, "Web App Auto Sync Master", master_content,
+                                     master_file_online.sha)
+
+                    # 读取本地最新的场地分表二进制数据并推送到 GitHub
+                    with open(SUB_FILE, "rb") as f:
+                        sub_content = f.read()
+                    sub_file_online = repo.get_contents(SUB_FILE)
+                    repo.update_file(sub_file_online.path, "Web App Auto Sync Sub Sheets", sub_content,
+                                     sub_file_online.sha)
+
+                    # 4. 清除页面缓存，强制刷新数据
+                    st.cache_data.clear()
+                    st.success("🎉 太棒了！修改已成功保存，并已【永久同步】至您的 GitHub 数据库！")
+                    import time
+
+                    time.sleep(2)
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ 同步失败！请检查 Token 配置或仓库名称。详细报错: {e}")
     else:
         # 只读模式下传入用户的冻结设定
         display_multiline_table(df_master, freeze_option)
