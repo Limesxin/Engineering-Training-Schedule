@@ -16,7 +16,7 @@ st.set_page_config(page_title="工程训练排课系统", page_icon="🛠️", l
 ADMIN_PASSWORD = "888"
 MASTER_FILE = '2025-2026工程训练_信息全满终极版.xlsx'
 SUB_FILE = '各工种场地课表_最新版.xlsx'
-CONFIG_FILE = 'custom_configs.json'  # 新增：用来存储大家勾选的配置字典
+CONFIG_FILE = 'custom_configs.json'
 
 GLOBAL_PATTERN = re.compile(r'^([AB]?)\s*(.*?)\s*(\d+\'?-\d+\'?|考\d+)\s*(?:[（\(](.*?)[）\)])?\s*$')
 
@@ -75,7 +75,6 @@ def generate_custom_df(df_master, selected_ws, selected_teachers):
                         teacher_name = match.group(4).strip() if match.group(4) else ""
                         if not ws_name: ws_name = '考试' if '考' in time_suffix else '未命名项目'
 
-                        # 核心判定：是否属于选中的工种或代课老师
                         if (ws_name in selected_ws) or (teacher_name in selected_teachers):
                             display_text = f"{class_name} {line}"
                             is_am, is_pm = False, False
@@ -167,7 +166,6 @@ def display_multiline_table(df, freeze_mode="智能自适应 (推荐)"):
 
 
 def sync_sub_sheets(df_master_latest):
-    # 重新拆分场地的逻辑保持不变
     week_cols = {col: int(re.search(r'第(\d+)周', col).group(1)) for col in df_master_latest.columns if
                  re.search(r'第(\d+)周', col)}
     workshop_schedule = {}
@@ -241,7 +239,6 @@ def sync_sub_sheets(df_master_latest):
                         cell.fill = fill_gray
 
 
-# 自动化推送到 GitHub 的核心组件
 def push_to_github(file_path, commit_message):
     try:
         from github import Github
@@ -271,9 +268,8 @@ except FileNotFoundError as e:
     st.error(f"❌ 找不到文件，请确保总表和分表都在同一个文件夹内！")
     st.stop()
 
-# --- 侧边栏 ---
+# --- 侧边栏导航 ---
 st.sidebar.header("⚙️ 导航与控制面板")
-# 【新增】：模式四 专属课表快速查询
 view_mode = st.sidebar.radio("👀 请选择视图模式：", [
     "📚 查看大总表",
     "📍 查看场地分表",
@@ -290,6 +286,23 @@ st.sidebar.subheader("🔒 管理员通道")
 input_pwd = st.sidebar.text_input("请输入修改密码解锁编辑模式：", type="password")
 is_admin = (input_pwd == ADMIN_PASSWORD)
 if is_admin: st.sidebar.success("✅ 密码正确，已解锁！")
+
+# --- 【新增】下载全局双表按钮 ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("📥 核心数据导出备份")
+try:
+    with open(MASTER_FILE, "rb") as f:
+        master_bytes = f.read()
+    with open(SUB_FILE, "rb") as f:
+        sub_bytes = f.read()
+    st.sidebar.download_button("📦 下载最新【全景大总表】", data=master_bytes, file_name="最新_工程训练总表.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               use_container_width=True)
+    st.sidebar.download_button("📦 下载最新【各工种场地表】", data=sub_bytes, file_name="最新_各工种场地课表.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               use_container_width=True)
+except Exception:
+    pass  # 若文件正在写入可能偶发读取失败，静默处理
 
 # ----------------- 模式一：大总表 -----------------
 if view_mode == "📚 查看大总表":
@@ -319,21 +332,18 @@ elif view_mode == "📍 查看场地分表":
     st.subheader(f"📌 当前视图：【{selected_sheet}】场地课表")
     display_multiline_table(all_sub_sheets[selected_sheet], freeze_option)
 
-# ----------------- 模式三：专属课表快速查询 (全新模块) -----------------
+# ----------------- 模式三：专属课表快速查询 (带管理员删除) -----------------
 elif view_mode == "🔎 专属课表快速查询":
     st.subheader("📌 当前视图：【专属课表快速查询】")
     if not saved_configs:
         st.warning("📭 目前还没有人保存过专属课表。请先去『个人专属课表 (新建与配置)』里创建一个吧！")
     else:
-        # 下拉菜单查找已经备注过的课表
         config_names = list(saved_configs.keys())
         selected_config_name = st.selectbox("🎯 请选择已保存的专属课表：", config_names)
 
-        # 提取存储的配置并实时生成课表
         cfg = saved_configs[selected_config_name]
         df_custom = generate_custom_df(df_master, cfg['ws'], cfg['teachers'])
 
-        # 新增的下载按钮组件
         excel_bytes = to_excel_bytes(df_custom, sheet_title=selected_config_name)
         st.download_button(
             label=f"📥 一键下载【{selected_config_name}】 (Excel格式)",
@@ -342,6 +352,26 @@ elif view_mode == "🔎 专属课表快速查询":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary"
         )
+
+        # 【新增：管理员删除功能】
+        if is_admin:
+            st.markdown("---")
+            st.error("🚨 管理员危险操作区：清理废弃课表")
+            col_del1, col_del2 = st.columns([3, 1])
+            with col_del1:
+                del_target = st.selectbox("请选择要永久删除的废弃课表：", config_names, key="del_select")
+            with col_del2:
+                st.write("")
+                if st.button("🗑️ 确认永久删除", use_container_width=True):
+                    with st.spinner("正在从云端数据库中抹除该配置..."):
+                        del saved_configs[del_target]
+                        save_configs(saved_configs)
+                        push_to_github(CONFIG_FILE, f"Delete custom schedule: {del_target}")
+                    st.success(f"已成功删除【{del_target}】！页面即将刷新...")
+                    import time;
+
+                    time.sleep(1.5);
+                    st.rerun()
 
         st.markdown(
             f"**当前配置详情**：涵盖工种 `[ {', '.join(cfg['ws'])} ]` ，代课标识 `[ {', '.join(cfg['teachers'])} ]`")
@@ -387,20 +417,16 @@ elif view_mode == "🧑‍🏫 个人专属课表 (新建与配置)":
         with col_input:
             remark_name = st.text_input("请给这个课表起个名字（例：张三老师的周课表）：", placeholder="输入备注名称...")
         with col_btn:
-            st.write("")  # 占位对齐
+            st.write("")
             if st.button("🚀 保存并公开此专属课表", use_container_width=True):
                 if not remark_name.strip():
                     st.error("❌ 名字不能为空哦！")
                 else:
                     with st.spinner("正在写入云端配置库..."):
-                        # 保存到本地 JSON
                         saved_configs[remark_name.strip()] = {
                             "ws": selected_ws,
                             "teachers": selected_teachers
                         }
                         save_configs(saved_configs)
-
-                        # 悄悄把配置同步到 GitHub，确保别人也能看见
                         push_to_github(CONFIG_FILE, f"Add new custom schedule: {remark_name}")
-
                     st.success(f"🎉 保存成功！您现在可以去左侧导航栏的『🔎 专属课表快速查询』里直接下拉调用它啦！")
