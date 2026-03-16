@@ -287,20 +287,25 @@ input_pwd = st.sidebar.text_input("请输入修改密码解锁编辑模式：", 
 is_admin = (input_pwd == ADMIN_PASSWORD)
 if is_admin: st.sidebar.success("✅ 密码正确，已解锁！")
 
+
 # --- 【修复】安全的下载全局双表按钮 ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("📥 核心数据导出备份")
-if os.path.exists(MASTER_FILE) and os.path.exists(SUB_FILE):
+try:
     with open(MASTER_FILE, "rb") as f_master:
-        st.sidebar.download_button("📦 下载最新【全景大总表】", data=f_master, file_name="最新_工程训练总表.xlsx",
+        master_bytes = f_master.read()
+        st.sidebar.download_button("📦 下载最新【全景大总表】", data=master_bytes, file_name="最新_工程训练总表.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    use_container_width=True)
+
     with open(SUB_FILE, "rb") as f_sub:
-        st.sidebar.download_button("📦 下载最新【各工种场地表】", data=f_sub, file_name="最新_各工种场地课表.xlsx",
+        sub_bytes = f_sub.read()
+        st.sidebar.download_button("📦 下载最新【各工种场地表】", data=sub_bytes, file_name="最新_各工种场地课表.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    use_container_width=True)
-else:
-    st.sidebar.warning("表格文件尚未准备好，请稍后再试。")
+except Exception as e:
+    st.sidebar.warning(f"文件正在同步中，请刷新页面重试... (报错信息: {e})")
+
 
 # ----------------- 模式一：大总表 -----------------
 if view_mode == "📚 查看大总表":
