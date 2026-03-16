@@ -342,3 +342,36 @@ elif view_mode == "🧑‍🏫 个人专属课表 (自由组合)":
         st.success("✨ 合成完毕！以下是为您量身定制的专属课表：")
         # 同样传入冻结设置
         display_multiline_table(df_custom, freeze_option)
+
+
+# ==========================================
+# 6. 数据备份与导出模块 (新增在代码最末尾)
+# ==========================================
+st.sidebar.markdown("---")
+st.sidebar.subheader("📥 数据备份与导出")
+
+st.sidebar.info("💡 提示：云端服务器休眠会重置数据，请在修改后及时下载备份！")
+
+# 读取当前的最新文件转换成可以下载的二进制数据
+with open(MASTER_FILE, "rb") as f:
+    master_bytes = f.read()
+
+with open(SUB_FILE, "rb") as f:
+    sub_bytes = f.read()
+
+# 生成下载按钮
+st.sidebar.download_button(
+    label="📦 下载最新【大总表】 (Excel)",
+    data=master_bytes,
+    file_name="最新_工程训练总表.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
+
+st.sidebar.download_button(
+    label="📦 下载最新【场地分表】 (Excel)",
+    data=sub_bytes,
+    file_name="最新_各工种场地课表.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
