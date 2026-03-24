@@ -15,7 +15,6 @@ st.set_page_config(page_title="工程训练排课系统", page_icon="🛠️", l
 
 ADMIN_PASSWORD = "888"
 MASTER_FILE = '2025-2026工程训练_0308.xlsx'
-# ⚠️ 注意：我们已经彻底删除了 SUB_FILE 的配置，不再需要它了！
 CONFIG_FILE = 'custom_configs.json'
 
 GLOBAL_PATTERN = re.compile(r'^([AB]?)\s*(.*?)\s*(\d+\'?-\d+\'?|考\d+)\s*(?:[（\(](.*?)[）\)])?\s*$')
@@ -34,7 +33,6 @@ def generate_all_sub_sheets(df_master):
         if ws_name not in workshop_schedule:
             workshop_schedule[ws_name] = {w: {d: {'上午': [], '下午': []} for d in days} for w in range(1, 22)}
 
-    # 扫描总表进行拆解
     for index, row in df_master.iterrows():
         class_name = str(row.get('教学班名称', '')).strip()
         day = str(row.get('星期', '')).strip()
@@ -57,19 +55,22 @@ def generate_all_sub_sheets(df_master):
                         is_am, is_pm = False, False
                         if '考' in time_suffix:
                             num = int(time_suffix.replace('考', ''))
-                            if num <= 4: is_am = True
-                            if num >= 5: is_pm = True
+                            if num <= 4:
+                                is_am = True
+                            if num >= 5:
+                                is_pm = True
                         else:
                             parts = time_suffix.split('-')
                             start = int(parts[0].replace("'", ""))
                             end = int(parts[1].replace("'", ""))
-                            if start <= 4: is_am = True
-                            if end >= 5: is_pm = True
+                            if start <= 4:
+                                is_am = True
+                            if end >= 5:
+                                is_pm = True
 
                         if is_am: workshop_schedule[ws_name][week_num][day]['上午'].append(display_text)
                         if is_pm: workshop_schedule[ws_name][week_num][day]['下午'].append(display_text)
 
-    # 组装为字典形式的 DataFrames
     all_sub_dfs = {}
     all_ws = list(workshop_schedule.keys())
     if '理论' in all_ws:
@@ -99,11 +100,8 @@ def generate_all_sub_sheets(df_master):
 # ==========================================
 @st.cache_data
 def load_all_data():
-    # 现在只读取唯一的物理文件：大总表！
     df_master = pd.read_excel(MASTER_FILE, sheet_name='排课表')
     df_master = df_master.fillna("")
-
-    # 动态在内存中瞬间生成所有的场地分表！
     all_sub_sheets = generate_all_sub_sheets(df_master)
     return df_master, all_sub_sheets
 
@@ -121,7 +119,6 @@ def save_configs(configs):
 # ==========================================
 # 4. 导出为真实 Excel 的转换引擎
 # ==========================================
-# 转换单个专属课表为 Excel
 def to_excel_bytes_single(df, sheet_title="专属课表"):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -140,7 +137,6 @@ def to_excel_bytes_single(df, sheet_title="专属课表"):
     return output.getvalue()
 
 
-# 转换所有的场地分表为一个包含多 Sheet 的大 Excel
 def to_excel_bytes_multiple(dict_of_dfs):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -257,17 +253,15 @@ if is_admin:
         time.sleep(1);
         st.rerun()
 
-# --- 【完美版】下载全局双表按钮 ---
+# --- 下载全局双表按钮 ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("📥 核心数据导出备份")
 try:
-    # 直接读取本地的大总表
     with open(MASTER_FILE, "rb") as f_master:
         st.sidebar.download_button("📦 下载最新【全景大总表】", data=f_master.read(), file_name="最新_工程训练总表.xlsx",
                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                    use_container_width=True)
 
-    # 分表不再读取物理文件，而是瞬间在内存打包下载！
     sub_excel_bytes = to_excel_bytes_multiple(all_sub_sheets)
     st.sidebar.download_button("📦 下载最新【各工种场地表】", data=sub_excel_bytes,
                                file_name="动态生成_各工种场地课表.xlsx",
@@ -284,7 +278,6 @@ if view_mode == "📚 查看大总表":
         edited_df = st.data_editor(df_master, use_container_width=True, hide_index=True, num_rows="dynamic")
         if st.button("💾 保存修改，并永久同步至 GitHub", type="primary"):
             with st.spinner("🚀 正在保存并向 GitHub 数据库进行永久同步，请千万不要关闭网页（约需10秒）..."):
-                # 只需保存大总表到本地和 GitHub！
                 edited_df.to_excel(MASTER_FILE, index=False, sheet_name='排课表')
                 push_to_github(MASTER_FILE, "Web App Auto Sync Master")
                 st.cache_data.clear()
@@ -314,8 +307,6 @@ elif view_mode == "🔎 专属课表快速查询":
 
         cfg = saved_configs[selected_config_name]
 
-        # 为了生成专属课表，我们需要借用一下刚才动态生成分表时的核心逻辑函数
-        # 因为代码被重构了，这里直接将 generate_custom_df 的代码内嵌复用
         week_cols = {col: int(re.search(r'第(\d+)周', col).group(1)) for col in df_master.columns if
                      re.search(r'第(\d+)周', col)}
         days = ['周一', '周二', '周三', '周四', '周五']
@@ -343,12 +334,16 @@ elif view_mode == "🔎 专属课表快速查询":
                                 is_am, is_pm = False, False
                                 if '考' in time_suffix:
                                     num = int(time_suffix.replace('考', ''))
-                                    if num <= 4: is_am = True; if
-                                    num >= 5: is_pm = True
+                                    if num <= 4:
+                                        is_am = True
+                                    if num >= 5:
+                                        is_pm = True
                                 else:
                                     parts = time_suffix.split('-')
-                                    if int(parts[0].replace("'", "")) <= 4: is_am = True
-                                    if int(parts[1].replace("'", "")) >= 5: is_pm = True
+                                    if int(parts[0].replace("'", "")) <= 4:
+                                        is_am = True
+                                    if int(parts[1].replace("'", "")) >= 5:
+                                        is_pm = True
                                 if is_am: custom_schedule[week_num][day]['上午'].append(display_text)
                                 if is_pm: custom_schedule[week_num][day]['下午'].append(display_text)
 
@@ -426,7 +421,6 @@ elif view_mode == "🧑‍🏫 个人专属课表 (新建与配置)":
     if not selected_ws and not selected_teachers:
         st.warning("👈 请在上方至少选择一项工种或代课标识以预览您的专属课表。")
     else:
-        # 重复一遍提取逻辑，生成预览
         custom_schedule = {w: {d: {'上午': [], '下午': []} for d in ['周一', '周二', '周三', '周四', '周五']} for w in
                            range(1, 22)}
         for index, row in df_master.iterrows():
@@ -451,12 +445,16 @@ elif view_mode == "🧑‍🏫 个人专属课表 (新建与配置)":
                                 is_am, is_pm = False, False
                                 if '考' in time_suffix:
                                     num = int(time_suffix.replace('考', ''))
-                                    if num <= 4: is_am = True; if
-                                    num >= 5: is_pm = True
+                                    if num <= 4:
+                                        is_am = True
+                                    if num >= 5:
+                                        is_pm = True
                                 else:
                                     parts = time_suffix.split('-')
-                                    if int(parts[0].replace("'", "")) <= 4: is_am = True
-                                    if int(parts[1].replace("'", "")) >= 5: is_pm = True
+                                    if int(parts[0].replace("'", "")) <= 4:
+                                        is_am = True
+                                    if int(parts[1].replace("'", "")) >= 5:
+                                        is_pm = True
                                 if is_am: custom_schedule[week_num][day]['上午'].append(display_text)
                                 if is_pm: custom_schedule[week_num][day]['下午'].append(display_text)
 
