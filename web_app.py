@@ -14,8 +14,8 @@ import io
 st.set_page_config(page_title="工程训练排课系统", page_icon="🛠️", layout="wide")
 
 ADMIN_PASSWORD = "888"
-MASTER_FILE = '2025-2026工程训练_0324.xlsx'
-SUB_FILE = '各工种场地课表_最新版03242.xlsx'
+MASTER_FILE = '2025-2026工程训练_0308.xlsx'
+SUB_FILE = '各工种场地课表_最新版03082.xlsx'
 CONFIG_FILE = 'custom_configs.json'
 
 GLOBAL_PATTERN = re.compile(r'^([AB]?)\s*(.*?)\s*(\d+\'?-\d+\'?|考\d+)\s*(?:[（\(](.*?)[）\)])?\s*$')
